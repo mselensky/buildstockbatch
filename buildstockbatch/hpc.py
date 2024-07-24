@@ -612,36 +612,81 @@ class SlurmBatch(BuildStockBatchBase):
         here = os.path.dirname(os.path.abspath(__file__))
         hpc_post_sh = os.path.join(here, f"{self.HPC_NAME}_postprocessing.sh")
 
-        args = [
+        head_args = [
             "sbatch",
             "--tmp=1000000",
             "--account={}".format(account),
-            "--time={}".format(walltime),
+            #"--time={}".format(walltime),
+            "--time={}".format('04:00:00'), # mjs for now
+            "--partition={}".format('short'), # mjs for now
             "--export={}".format(",".join(env_export.keys())),
             "--job-name=bstkpost",
             "--output=postprocessing.out",
             "--nodes=1",
-            ":",
-            "--tmp=1000000",
-            "--mem={}".format(memory),
-            "--output=dask_workers.out",
-            "--nodes={}".format(n_workers),
-            hpc_post_sh,
+            hpc_post_sh
         ]
 
-        if after_jobids:
-            args.insert(4, "--dependency=afterany:{}".format(":".join(after_jobids)))
-
-        if os.environ.get("SLURM_JOB_QOS"):
-            args.insert(-1, "--qos={}".format(os.environ.get("SLURM_JOB_QOS")))
-        elif hipri:
-            args.insert(-1, "--qos=high")
+        # to do: f'after:{head_job_id}'
+        #work_args = [
+        #    "--tmp=1000000",
+        #    "--account={}".format(account),
+        #    "--time={}".format(walltime),
+        #    "--mem={}".format(memory),
+        #    "--output=dask_workers.out",
+        #    "--nodes={}".format(n_workers),
+        #    hpc_post_sh,
+        #]
 
         env = {}
         env.update(os.environ)
         env.update(env_export)
+
+        # submit head node job
         resp = subprocess.run(
-            args,
+            head_args,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            env=env,
+            encoding="utf-8",
+            cwd=self.output_dir,
+        )
+        # search for head node job ID (will be any numeric string from sbatch line)
+        for line in resp.stdout.split("\n"):
+            logger.debug("sbatch: {}".format(line))
+
+        head_job_id = resp.stdout.split(" ")[3]
+        if head_job_id:
+            head_job_id = re.sub('\n', '', head_job_id)
+            logger.debug(f"Submitted head node job {head_job_id}")
+        
+        # submit worker node job(s) after the head node job starts
+        # to do: f'after:{head_job_id}'
+        work_args = [
+            "sbatch",
+            "--tmp=1000000",
+            "--account={}".format(account),
+            #"--time={}".format(walltime),
+            "--time={}".format('04:00:00'), # mjs for now
+            "--partition={}".format('short'), # mjs for now
+            "--mem={}".format(memory),
+            "--output=dask_workers.out",
+            "--nodes={}".format(n_workers),
+            "--export={}".format(",".join(env_export.keys())),
+            "--dependency=after:{}".format(head_job_id),
+            "--job-name=bstkpost",
+            hpc_post_sh,
+        ]
+
+        if after_jobids:
+            work_args.insert(4, "--dependency=afterany:{}".format(":".join(after_jobids)))
+
+        if os.environ.get("SLURM_JOB_QOS"):
+            work_args.insert(-1, "--qos={}".format(os.environ.get("SLURM_JOB_QOS")))
+        elif hipri:
+            work_args.insert(-1, "--qos=high")
+
+        resp = subprocess.run(
+            work_args,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             env=env,
@@ -650,6 +695,7 @@ class SlurmBatch(BuildStockBatchBase):
         )
         for line in resp.stdout.split("\n"):
             logger.debug("sbatch: {}".format(line))
+
 
     def get_dask_client(self):
         # Keep this, helpful for debugging on a bigmem node
@@ -769,7 +815,8 @@ class EagleBatch(SlurmBatch):
 
 
 class KestrelBatch(SlurmBatch):
-    DEFAULT_SYS_IMAGE_DIR = "/kfs2/shared-projects/buildstock/apptainer_images"
+    #DEFAULT_SYS_IMAGE_DIR = "/kfs2/shared-projects/buildstock/apptainer_images"
+    DEFAULT_SYS_IMAGE_DIR = "/scratch/mselensk/buildstock-testing" # for now
     HPC_NAME = "kestrel"
     CORES_PER_NODE = 104
     MIN_SIMS_PER_JOB = 104 * 2
