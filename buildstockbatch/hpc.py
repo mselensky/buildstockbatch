@@ -626,17 +626,6 @@ class SlurmBatch(BuildStockBatchBase):
             hpc_post_sh
         ]
 
-        # to do: f'after:{head_job_id}'
-        #work_args = [
-        #    "--tmp=1000000",
-        #    "--account={}".format(account),
-        #    "--time={}".format(walltime),
-        #    "--mem={}".format(memory),
-        #    "--output=dask_workers.out",
-        #    "--nodes={}".format(n_workers),
-        #    hpc_post_sh,
-        #]
-
         env = {}
         env.update(os.environ)
         env.update(env_export)
@@ -693,8 +682,11 @@ class SlurmBatch(BuildStockBatchBase):
             encoding="utf-8",
             cwd=self.output_dir,
         )
+
         for line in resp.stdout.split("\n"):
             logger.debug("sbatch: {}".format(line))
+        work_job_id = resp.stdout.split(" ")[3]
+        logger.debug(f"Submitted worker node job {work_job_id}")
 
 
     def get_dask_client(self):

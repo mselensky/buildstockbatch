@@ -416,7 +416,7 @@ def combine_results(fs, results_dir, cfg, do_timeseries=True):
 
     # create the postprocessing results directories
     for dr in dirs:
-        fs.makedirs(dr)
+        fs.makedirs(dr, exist_ok = True)
 
     # Results "CSV"
     results_json_files = fs.glob(f"{sim_output_dir}/results_job*.json.gz")
@@ -520,7 +520,7 @@ def combine_results(fs, results_dir, cfg, do_timeseries=True):
         else:
             results_parquet_dir = f"{parquet_dir}/upgrades/upgrade={upgrade_id}"
 
-        fs.makedirs(results_parquet_dir)
+        fs.makedirs(results_parquet_dir, exist_ok = True)
         parquet_filename = f"{results_parquet_dir}/results_up{upgrade_id:02d}.parquet"
         logger.info(f"Writing {parquet_filename}")
         write_dataframe_as_parquet(df.reset_index(), fs, parquet_filename, schema=schema)
@@ -567,7 +567,7 @@ def combine_results(fs, results_dir, cfg, do_timeseries=True):
 
             ts_out_loc = f"{ts_dir}/upgrade={upgrade_id}"
 
-            fs.makedirs(ts_out_loc)
+            fs.makedirs(ts_out_loc, exist_ok = True)
             logger.info(f"Created directory {ts_out_loc} for writing. Now concatenating ...")
 
             src_path = f"{ts_in_dir}/up{upgrade_id:02d}"
