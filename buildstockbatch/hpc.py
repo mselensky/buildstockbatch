@@ -618,6 +618,9 @@ class SlurmBatch(BuildStockBatchBase):
         env.update(os.environ)
         env.update(env_export)
 
+        # set environmental variable HEAD_JOB to be referenced in kestrel_postprocessing.sh
+        env_export.update({"HEAD_JOB": 1})   
+
         # submit head node job(s) before the worker node job starts
         head_args = [
             "sbatch",
@@ -655,8 +658,10 @@ class SlurmBatch(BuildStockBatchBase):
             head_job_id = re.sub('\n', '', head_job_id)
             logger.debug(f"Submitted head (server) job {head_job_id}")
 
-        # export work_job_id as environmental variable WORKER_JOB_ID to be referenced in kestrel_postprocessing.sh
-        env_export.update({"WORKER_JOB": 1})        
+        # set environmental variable WORK_JOB to be referenced in kestrel_postprocessing.sh
+        # and unset HEAD_JOB variable 
+        env_export.update({"HEAD_JOB": 0,
+                           "WORKER_JOB": 1})         
 
         work_args = [
             "sbatch",
