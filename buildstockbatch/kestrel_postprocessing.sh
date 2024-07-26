@@ -23,8 +23,15 @@ echo "NPROCS: ${NPROCS}"
 SCHEDULER_FILE=$OUT_DIR/dask_scheduler.json
 
 echo "head node"
-echo $SLURM_JOB_NODELIST_PACK_GROUP_0
+echo $SLURM_JOB_NODELIST_PACK_GROUP_0=$HEAD_JOB_ID # inherited from changes to hpc.py
 echo "workers"
+
+# inherited from changes to hpc.py
+if [ $WORKER_JOB=1 ]; then 
+	export WORKER_JOB_ID=$SLURM_JOB_ID
+fi
+
+export SLURM_JOB_NODELIST_PACK_GROUP_1=$WORKER_JOB_ID # inherited from changes to hpc.py
 echo $SLURM_JOB_NODELIST_PACK_GROUP_1
 
 pdsh -w $SLURM_JOB_NODELIST_PACK_GROUP_1 "free -h"

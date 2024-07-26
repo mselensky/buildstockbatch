@@ -612,6 +612,13 @@ class SlurmBatch(BuildStockBatchBase):
         here = os.path.dirname(os.path.abspath(__file__))
         hpc_post_sh = os.path.join(here, f"{self.HPC_NAME}_postprocessing.sh")
 
+        # Submit WORKERS before the HEAD so the WORKER job ID can be referenced by the dask scheduler.json
+        # in kestrel_postprocessing.sh
+        env = {}
+        env.update(os.environ)
+        env.update(env_export)
+
+        # submit head node job(s) after the worker node job starts
         head_args = [
             "sbatch",
             "--tmp=1000000",
@@ -619,18 +626,20 @@ class SlurmBatch(BuildStockBatchBase):
             #"--time={}".format(walltime),
             "--time={}".format('04:00:00'), # mjs for now
             "--partition={}".format('short'), # mjs for now
+            "--mem={}".format(memory),
+            "--nodes=1",
             "--export={}".format(",".join(env_export.keys())),
             "--job-name=bstkpost",
-            "--output=postprocessing.out",
-            "--nodes=1",
-            hpc_post_sh
+            hpc_post_sh,
         ]
 
-        env = {}
-        env.update(os.environ)
-        env.update(env_export)
+        if after_jobids:
+            head_args.insert(4, "--dependency=afterany:{}".format(":".join(after_jobids)))
+        if os.environ.get("SLURM_JOB_QOS"):
+            head_args.insert(-1, "--qos={}".format(os.environ.get("SLURM_JOB_QOS")))
+        elif hipri:
+            head_args.insert(-1, "--qos=high")
 
-        # submit head node job
         resp = subprocess.run(
             head_args,
             stdout=subprocess.PIPE,
@@ -639,17 +648,18 @@ class SlurmBatch(BuildStockBatchBase):
             encoding="utf-8",
             cwd=self.output_dir,
         )
-        # search for head node job ID (will be any numeric string from sbatch line)
+
         for line in resp.stdout.split("\n"):
             logger.debug("sbatch: {}".format(line))
-
         head_job_id = resp.stdout.split(" ")[3]
         if head_job_id:
             head_job_id = re.sub('\n', '', head_job_id)
             logger.debug(f"Submitted head node job {head_job_id}")
-        
-        # submit worker node job(s) after the head node job starts
-        # to do: f'after:{head_job_id}'
+        logger.debug(f"Submitted head node job {head_job_id}")
+
+        # export work_job_id as environmental variable WORKER_JOB_ID to be referenced in kestrel_postprocessing.sh
+        env_export.update({"WORKER_JOB": 1})        
+
         work_args = [
             "sbatch",
             "--tmp=1000000",
@@ -657,13 +667,13 @@ class SlurmBatch(BuildStockBatchBase):
             #"--time={}".format(walltime),
             "--time={}".format('04:00:00'), # mjs for now
             "--partition={}".format('short'), # mjs for now
-            "--mem={}".format(memory),
-            "--output=dask_workers.out",
-            "--nodes={}".format(n_workers),
             "--export={}".format(",".join(env_export.keys())),
-            "--dependency=after:{}".format(head_job_id),
             "--job-name=bstkpost",
-            hpc_post_sh,
+            "--output=dask_workers.out", # mjs for now
+            "--mem={}".format(memory), # mjs for now
+            "--nodes={}".format(n_workers), # mjs for now
+            "--dependency=after:{}".format(head_job_id), # mjs for now
+            hpc_post_sh
         ]
 
         if after_jobids:
@@ -674,6 +684,7 @@ class SlurmBatch(BuildStockBatchBase):
         elif hipri:
             work_args.insert(-1, "--qos=high")
 
+        # submit worker nodes job
         resp = subprocess.run(
             work_args,
             stdout=subprocess.PIPE,
@@ -682,18 +693,20 @@ class SlurmBatch(BuildStockBatchBase):
             encoding="utf-8",
             cwd=self.output_dir,
         )
-
         for line in resp.stdout.split("\n"):
             logger.debug("sbatch: {}".format(line))
-        work_job_id = resp.stdout.split(" ")[3]
-        logger.debug(f"Submitted worker node job {work_job_id}")
-
+            work_job_id = resp.stdout.split(" ")[3]
+        
+        if work_job_id:
+            work_job_id = re.sub('\n', '', work_job_id)
+            logger.debug(f"Submitted head node job {work_job_id}")
+        #subprocess.run(['export', f'WORKER_JOB_ID={work_job_id}'], shell=True)
 
     def get_dask_client(self):
         # Keep this, helpful for debugging on a bigmem node
         # from dask.distributed import LocalCluster
-        # cluster = LocalCluster(local_directory="/tmp/scratch/dask", n_workers=90, memory_limit="16GiB")
-        # return Client(cluster)
+        #cluster = LocalCluster(local_directory="/tmp/scratch/dask", n_workers=90, memory_limit="16GiB")
+        #return Client(cluster)
         return Client(scheduler_file=os.path.join(self.output_dir, "dask_scheduler.json"))
 
     def process_results(self, *args, **kwargs):
