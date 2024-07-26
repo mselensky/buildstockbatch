@@ -623,9 +623,9 @@ class SlurmBatch(BuildStockBatchBase):
             "sbatch",
             "--tmp=1000000",
             "--account={}".format(account),
-            #"--time={}".format(walltime),
-            "--time={}".format('04:00:00'), # mjs for now
-            "--partition={}".format('short'), # mjs for now
+            "--time={}".format(walltime),
+            #"--time={}".format('04:00:00'), # mjs for now
+            #"--partition={}".format('short'), # mjs for now
             "--mem={}".format(memory),
             "--nodes=1",
             "--output=dask_scheduler.out",
@@ -664,15 +664,15 @@ class SlurmBatch(BuildStockBatchBase):
             "sbatch",
             "--tmp=1000000",
             "--account={}".format(account),
-            #"--time={}".format(walltime),
-            "--time={}".format('04:00:00'), # mjs for now
-            "--partition={}".format('short'), # mjs for now
+            "--time={}".format(walltime),
+            #"--time={}".format('04:00:00'), # mjs for now
+            #"--partition={}".format('short'), # mjs for now
             "--export={}".format(",".join(env_export.keys())),
             "--job-name=bstkpost",
-            "--output=dask_workers.out", # mjs for now
-            "--mem={}".format(memory), # mjs for now
-            "--nodes={}".format(n_workers), # mjs for now
-            "--dependency=after:{}".format(head_job_id), # mjs for now
+            "--output=dask_workers.out", 
+            "--mem={}".format(memory), 
+            "--nodes={}".format(n_workers),
+            "--dependency=after:{}".format(head_job_id),
             hpc_post_sh
         ]
 
