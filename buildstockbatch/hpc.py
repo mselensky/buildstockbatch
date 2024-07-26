@@ -628,6 +628,7 @@ class SlurmBatch(BuildStockBatchBase):
             "--partition={}".format('short'), # mjs for now
             "--mem={}".format(memory),
             "--nodes=1",
+            "--output=dask_scheduler.out",
             "--export={}".format(",".join(env_export.keys())),
             "--job-name=bstkpost",
             hpc_post_sh,
@@ -654,8 +655,7 @@ class SlurmBatch(BuildStockBatchBase):
         head_job_id = resp.stdout.split(" ")[3]
         if head_job_id:
             head_job_id = re.sub('\n', '', head_job_id)
-            logger.debug(f"Submitted head node job {head_job_id}")
-        logger.debug(f"Submitted head node job {head_job_id}")
+            logger.debug(f"Submitted head (server) job {head_job_id}")
 
         # export work_job_id as environmental variable WORKER_JOB_ID to be referenced in kestrel_postprocessing.sh
         env_export.update({"WORKER_JOB": 1})        
@@ -699,8 +699,7 @@ class SlurmBatch(BuildStockBatchBase):
         
         if work_job_id:
             work_job_id = re.sub('\n', '', work_job_id)
-            logger.debug(f"Submitted head node job {work_job_id}")
-        #subprocess.run(['export', f'WORKER_JOB_ID={work_job_id}'], shell=True)
+            logger.debug(f"Submitted worker (client) job {work_job_id}")
 
     def get_dask_client(self):
         # Keep this, helpful for debugging on a bigmem node
