@@ -612,20 +612,18 @@ class SlurmBatch(BuildStockBatchBase):
         here = os.path.dirname(os.path.abspath(__file__))
         hpc_post_sh = os.path.join(here, f"{self.HPC_NAME}_postprocessing.sh")
 
-        # Submit WORKERS before the HEAD so the WORKER job ID can be referenced by the dask scheduler.json
-        # in kestrel_postprocessing.sh
+        # Submit HEAD before the WORKERS outside of the context of a heterogeneous job.
+        # A Slurm bug reported on July 19 prevents heterogeneous jobs from getting scheduled at all on Kestrel, hence this workaround.
         env = {}
         env.update(os.environ)
         env.update(env_export)
 
-        # submit head node job(s) after the worker node job starts
+        # submit head node job(s) before the worker node job starts
         head_args = [
             "sbatch",
             "--tmp=1000000",
             "--account={}".format(account),
             "--time={}".format(walltime),
-            #"--time={}".format('04:00:00'), # mjs for now
-            #"--partition={}".format('short'), # mjs for now
             "--mem={}".format(memory),
             "--nodes=1",
             "--output=dask_scheduler.out",
@@ -665,8 +663,6 @@ class SlurmBatch(BuildStockBatchBase):
             "--tmp=1000000",
             "--account={}".format(account),
             "--time={}".format(walltime),
-            #"--time={}".format('04:00:00'), # mjs for now
-            #"--partition={}".format('short'), # mjs for now
             "--export={}".format(",".join(env_export.keys())),
             "--job-name=bstkpost",
             "--output=dask_workers.out", 
